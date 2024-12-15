@@ -33,91 +33,95 @@ export async function getGitHubUsername(): Promise<string> {
 }
 
 export async function ensureGitHubRepository(username: string): Promise<void> {
-  const repoName = `gitracker-${username}`;
-  // const { Octokit } = await import("@octokit/rest");
-  const config = vscode.workspace.getConfiguration("gitracker");
+  return new Promise(async (resolve, reject) => {
+    const repoName = `gitracker-${username}`;
+    const config = vscode.workspace.getConfiguration("gitracker");
 
-  console.log(
-    "Inspecting gitracker.githubToken:",
-    config.inspect("githubToken")
-  );
-
-  if (!config.inspect("githubToken")) {
-    vscode.window.showErrorMessage(
-      "Configuration 'gitracker.githubToken' is not registered."
+    console.log(
+      "Inspecting gitracker.githubToken:",
+      config.inspect("githubToken")
     );
-  } else {
-    vscode.window.showInformationMessage("Configuration is registered!");
-  }
 
-  // Check if the token is already set
-  let token = config.get<string>("githubToken");
-  console.log("GitHub Token: ", token);
-  console.log(
-    "GitHub Token: ",
-    vscode.workspace.getConfiguration("gitracker").has("githubToken")
-  );
-  console.log(
-    vscode.workspace.getConfiguration().inspect("gitracker.githubToken")
-  );
+    if (!config.inspect("githubToken")) {
+      // vscode.window.showErrorMessage(
+      //   "Configuration 'gitracker.githubToken' is not registered."
+      // );
+      reject(
+        new Error("Configuration 'gitracker.githubToken' is not registered.")
+      );
+    } else {
+      vscode.window.showInformationMessage("Configuration is registered!");
+    }
 
-  if (!token) {
-    // Prompt the user to enter the token
-    token = await vscode.window.showInputBox({
-      prompt: "Enter your GitHub Personal Access Token (PAT)",
-      placeHolder: "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      ignoreFocusOut: true,
-      password: true, // Mask the input for security
-    });
+    // Check if the token is already set
+    let token = config.get<string>("githubToken");
+    console.log("GitHub Token: ", token);
+    console.log(
+      vscode.workspace.getConfiguration().inspect("gitracker.githubToken")
+    );
 
-    if (token) {
-      // Save the token to the configuration
-      try {
-        await config.update(
-          "githubToken",
-          token,
-          vscode.ConfigurationTarget.Global
+    if (!token) {
+      // Prompt the user to enter the token
+      token = await vscode.window.showInputBox({
+        prompt: "Enter your GitHub Personal Access Token (PAT)",
+        placeHolder: "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        ignoreFocusOut: true,
+        password: true, // Mask the input for security
+        title: "Gitracker",
+      });
+
+      if (token) {
+        // Save the token to the configuration
+        try {
+          await config.update(
+            "githubToken",
+            token,
+            vscode.ConfigurationTarget.Global
+          );
+          vscode.window.showInformationMessage(
+            "GitHub token saved successfully!"
+          );
+        } catch (error) {
+          vscode.window.showErrorMessage(
+            "Failed to save token. Please try again."
+          );
+          console.error(error);
+        }
+      } else {
+        reject(
+          new Error("No token entered. Gitracker features will not work.")
         );
-        vscode.window.showInformationMessage(
-          "GitHub token saved successfully!"
-        );
-      } catch (error) {
-        vscode.window.showErrorMessage(
-          "Failed to save token. Please try again."
-        );
-        console.error(error);
       }
     } else {
-      vscode.window.showErrorMessage(
-        "No token entered. Some features may not work."
+      vscode.window.showInformationMessage(
+        "GitHub token retrieved from configuration."
       );
+      console.log("GitHub Token:", token); // For debugging purposes (don't log tokens in production)
     }
-  } else {
-    vscode.window.showInformationMessage(
-      "GitHub token retrieved from configuration."
-    );
-    console.log("GitHub Token:", token); // For debugging purposes (don't log tokens in production)
-  }
 
-  const allSettings = vscode.workspace.getConfiguration();
-  console.log("All registered settings:", allSettings);
+    const allSettings = vscode.workspace.getConfiguration();
+    console.log("All registered settings:", allSettings);
 
-  const octokit = new Octokit({
-    auth: token,
+    const octokit = new Octokit({
+      auth: token,
+    });
+
+    try {
+      await octokit.repos.get({ owner: username, repo: repoName });
+      vscode.window.showInformationMessage(
+        `Repository "${repoName}" already exist on GitHub.`
+      );
+      resolve();
+    } catch (error: any) {
+      if (error.status === 404) {
+        createGithubRepository(octokit, username, repoName)
+          .then(() => resolve())
+          .catch((error) => reject(new Error(error.message)));
+      } else {
+        reject(new Error(`Failed to check repository: ${error.message}`));
+      }
+    }
   });
-
-  try {
-    await octokit.repos.get({ owner: username, repo: repoName });
-    vscode.window.showInformationMessage(
-      `Repository "${repoName}" already exist on GitHub.`
-    );
-  } catch (error: any) {
-    if (error.status === 404) {
-      await createGithubRepository(octokit, username, repoName);
-    } else {
-      throw new Error(`Failed to check repository: ${error.message}`);
-    }
-  }
 }
 
 async function createGithubRepository(
@@ -125,16 +129,19 @@ async function createGithubRepository(
   username: string,
   repoName: string
 ): Promise<void> {
-  try {
-    await octokit.repos.createForAuthenticatedUser({
-      name: repoName,
-      private: true,
-    });
+  return new Promise(async (resolve, reject) => {
+    try {
+      await octokit.repos.createForAuthenticatedUser({
+        name: repoName,
+        private: true,
+      });
 
-    vscode.window.showInformationMessage(
-      `Repository "${repoName}" successfully created on Github.`
-    );
-  } catch (error: any) {
-    throw new Error(`Failed to create repository: ${error.message}`);
-  }
+      vscode.window.showInformationMessage(
+        `Repository "${repoName}" successfully created on Github.`
+      );
+      resolve();
+    } catch (error: any) {
+      reject(new Error(`Failed to create repository: ${error.message}`));
+    }
+  });
 }
