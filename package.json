@@ -28,8 +28,8 @@
     },
     "commands": [
       {
-        "command": "gitraker.helloWorld",
-        "title": "Hello World"
+        "command": "gitraker.showActivity",
+        "title": "Gitracker Show Activity"
       },
       {
         "command": "extension.showUI",
@@ -66,6 +66,9 @@
   },
   "dependencies": {
     "@octokit/rest": "^21.0.2",
+    "cron": "^3.3.1",
+    "crypto": "^1.0.1",
+    "date-fns": "^4.1.0",
     "fs-extra": "^11.2.0",
     "simple-git": "^3.27.0"
   }
